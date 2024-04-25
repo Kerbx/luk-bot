@@ -1,6 +1,11 @@
+from pprint import pprint
+
+
 import config
 
 import asyncio
+import pathlib
+import os
 import telebot.async_telebot
 
 bot = telebot.async_telebot.AsyncTeleBot(config.BOT_TOKEN)
@@ -34,9 +39,39 @@ async def send_post(message):
 async def approve_post(message):
     if message.chat.id == config.ADMIN_CHAT_ID:
         new_message = message.reply_to_message
-        new_message.text = telebot.formatting.escape_markdown(new_message.text)
-        new_message.text += '\n\n[отправлено из предложки\.](tg://user?id=7143585636)'
-        new_message_id = await bot.send_message(message.chat.id, new_message.text, parse_mode='MarkdownV2')
+
+        caption = '\n\n[отправлено из предложки\.](tg://user?id=7143585636)'
+        pprint(new_message)
+        if new_message.text:
+            new_message.text = telebot.formatting.escape_markdown(new_message.text)
+            new_message.text += caption
+            new_message_id = await bot.send_message(message.chat.id, new_message.text, parse_mode='MarkdownV2')
+        elif new_message.caption:
+            caption = telebot.formatting.escape_markdown(new_message.caption) + caption
+            file_info = await bot.get_file(new_message.photo[len(new_message.photo) - 1].file_id)
+            downloaded_file = await bot.download_file(file_info.file_path)
+            src = new_message.photo[1].file_id
+            with open(src, 'wb') as file:
+                file.write(downloaded_file)
+
+            new_message_id = await bot.send_photo(message.chat.id, src, caption, parse_mode='MarkdownV2')
+            os.remove(pathlib.Path(src).absolute())
+
+        elif new_message.photo:
+            file_info = await bot.get_file(new_message.photo[len(new_message.photo) - 1].file_id)
+            downloaded_file = await bot.download_file(file_info.file_path)
+            src = new_message.photo[1].file_id
+            with open(src, 'wb') as file:
+                file.write(downloaded_file)
+
+            new_message_id = await bot.send_photo(message.chat.id, src, caption, parse_mode='MarkdownV2')
+            os.remove(pathlib.Path(src).absolute())
+
+        else:
+            await bot.send_message(message.chat.id, 'произошла какая\-то хуйня\.\nсообщи разработчику и катись нахуй\.',
+                                   parse_mode='MarkdownV2')
+            return
+
         new_message_id = new_message_id.message_id
 
         await bot.copy_message(config.CHANNEL_ID, config.ADMIN_CHAT_ID, new_message_id, parse_mode='MarkdownV2')
