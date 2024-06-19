@@ -115,4 +115,4 @@ async def send_any(message):
                                                 'доступных команд\.', parse_mode='MarkdownV2')
 
 
-asyncio.run(bot.polling())
+asyncio.run(bot.polling(non_stop=True))
