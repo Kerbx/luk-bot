@@ -4,13 +4,53 @@ from pprint import pprint
 import config
 
 import asyncio
+import json
+import requests
 import pathlib
+import schedule
+import time
+import threading
 import os
 import telebot.async_telebot
 
 bot = telebot.async_telebot.AsyncTeleBot(config.BOT_TOKEN)
 
 
+def schedule_checker():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+        
+
+async def get_scince_news():
+    return requests.post(
+    url="https://openrouter.ai/api/v1/chat/completions",
+    headers={
+      "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
+    },
+    data=json.dumps({
+      "model": "google/gemma-2-9b-it", # Optional
+      "messages": [
+        {"role": "system", "content": f"Ты журналист из мира абсурдных и глупых новостей науки."},
+        {"role": "user", "content": f"{'Напиши мне заголовок абсурдной новости из мира науки, без лишних слов, только заголовок и к нему пояснение! Только не используй символы разметки Markdown. И не забывай про пунктуацию, ты же журналист.'}"},
+      ],
+      "top_p": 0.75,
+      "temperature": 0.7,
+      "frequency_penalty": 1.1,
+      "presence_penalty": 1.1,
+      "repetition_penalty": 1,
+      "top_k": 0,
+    })
+  )
+
+
+async def send_scince_news():
+    news = await get_scince_news()
+    news = dict(news.json())['choices'][0]['message']['content']
+    
+    await bot.send_message(config.CHANNEL_ID, news)
+    
+    
 @bot.message_handler(commands=['start'])
 async def send_start(message):
     await bot.reply_to(message, 'прив\. '
@@ -113,6 +153,11 @@ async def send_any(message):
     else:
         await bot.send_message(message.chat.id, 'не понял, че ты там высрал, напиши /help, чтобы увидеть список '
                                                 'доступных команд\.', parse_mode='MarkdownV2')
+
+
+schedule.every().day.at("12:34").do(send_scince_news)
+
+threading.Thread(target=schedule_checker, daemon=True).start()
 
 
 asyncio.run(bot.polling(non_stop=True))
